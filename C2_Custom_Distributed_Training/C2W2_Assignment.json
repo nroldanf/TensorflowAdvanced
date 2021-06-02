@@ -1,0 +1,1508 @@
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "colab_type": "text",
+    "id": "AWqcoPhU3RJN"
+   },
+   "source": [
+    "# Breast Cancer Prediction\n",
+    "\n",
+    "In this exercise, you will train a neural network on the [Breast Cancer Dataset](https://archive.ics.uci.edu/ml/datasets/breast+cancer+wisconsin+(original)) to predict if the tumor is malignant or benign.\n",
+    "\n",
+    "If you get stuck, we recommend that you review the ungraded labs for this week."
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "colab_type": "text",
+    "id": "st5AIBFZ5mEQ"
+   },
+   "source": [
+    "## Imports"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 1,
+   "metadata": {
+    "colab": {},
+    "colab_type": "code",
+    "id": "JkMXve8XuN5X"
+   },
+   "outputs": [],
+   "source": [
+    "import tensorflow as tf\n",
+    "from tensorflow.keras.models import Model\n",
+    "from tensorflow.keras.layers import Dense, Input\n",
+    "\n",
+    "import numpy as np\n",
+    "import matplotlib.pyplot as plt\n",
+    "import matplotlib.ticker as mticker\n",
+    "import pandas as pd\n",
+    "from sklearn.model_selection import train_test_split\n",
+    "from sklearn.metrics import confusion_matrix\n",
+    "import itertools\n",
+    "from tqdm import tqdm\n",
+    "import tensorflow_datasets as tfds\n",
+    "\n",
+    "tf.get_logger().setLevel('ERROR')"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "colab_type": "text",
+    "id": "yUc3HpEQ5s6U"
+   },
+   "source": [
+    "## Load and Preprocess the Dataset"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "colab_type": "text",
+    "id": "7-TQFUXu5wS_"
+   },
+   "source": [
+    "We first download the dataset and create a data frame using pandas. We explicitly specify the column names because the CSV file does not have column headers."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 2,
+   "metadata": {
+    "colab": {},
+    "colab_type": "code",
+    "id": "HVh-W73J5TjS"
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Downloading data from https://archive.ics.uci.edu/ml/machine-learning-databases/breast-cancer-wisconsin/breast-cancer-wisconsin.data\n",
+      "24576/19889 [=====================================] - 0s 3us/step\n"
+     ]
+    }
+   ],
+   "source": [
+    "DATASET_URL = \"https://archive.ics.uci.edu/ml/machine-learning-databases/breast-cancer-wisconsin/breast-cancer-wisconsin.data\"\n",
+    "data_file = tf.keras.utils.get_file(\"breast_cancer.csv\", DATASET_URL)\n",
+    "col_names = [\"id\", \"clump_thickness\", \"un_cell_size\", \"un_cell_shape\", \"marginal_adheshion\", \"single_eph_cell_size\", \"bare_nuclei\", \"bland_chromatin\", \"normal_nucleoli\", \"mitoses\", \"class\"]\n",
+    "df = pd.read_csv(data_file, names=col_names, header=None)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 3,
+   "metadata": {
+    "colab": {},
+    "colab_type": "code",
+    "id": "XEv8vS_P6HaV"
+   },
+   "outputs": [
+    {
+     "data": {
+      "text/html": [
+       "<div>\n",
+       "<style scoped>\n",
+       "    .dataframe tbody tr th:only-of-type {\n",
+       "        vertical-align: middle;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe tbody tr th {\n",
+       "        vertical-align: top;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe thead th {\n",
+       "        text-align: right;\n",
+       "    }\n",
+       "</style>\n",
+       "<table border=\"1\" class=\"dataframe\">\n",
+       "  <thead>\n",
+       "    <tr style=\"text-align: right;\">\n",
+       "      <th></th>\n",
+       "      <th>id</th>\n",
+       "      <th>clump_thickness</th>\n",
+       "      <th>un_cell_size</th>\n",
+       "      <th>un_cell_shape</th>\n",
+       "      <th>marginal_adheshion</th>\n",
+       "      <th>single_eph_cell_size</th>\n",
+       "      <th>bare_nuclei</th>\n",
+       "      <th>bland_chromatin</th>\n",
+       "      <th>normal_nucleoli</th>\n",
+       "      <th>mitoses</th>\n",
+       "      <th>class</th>\n",
+       "    </tr>\n",
+       "  </thead>\n",
+       "  <tbody>\n",
+       "    <tr>\n",
+       "      <th>0</th>\n",
+       "      <td>1000025</td>\n",
+       "      <td>5</td>\n",
+       "      <td>1</td>\n",
+       "      <td>1</td>\n",
+       "      <td>1</td>\n",
+       "      <td>2</td>\n",
+       "      <td>1</td>\n",
+       "      <td>3</td>\n",
+       "      <td>1</td>\n",
+       "      <td>1</td>\n",
+       "      <td>2</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>1</th>\n",
+       "      <td>1002945</td>\n",
+       "      <td>5</td>\n",
+       "      <td>4</td>\n",
+       "      <td>4</td>\n",
+       "      <td>5</td>\n",
+       "      <td>7</td>\n",
+       "      <td>10</td>\n",
+       "      <td>3</td>\n",
+       "      <td>2</td>\n",
+       "      <td>1</td>\n",
+       "      <td>2</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>2</th>\n",
+       "      <td>1015425</td>\n",
+       "      <td>3</td>\n",
+       "      <td>1</td>\n",
+       "      <td>1</td>\n",
+       "      <td>1</td>\n",
+       "      <td>2</td>\n",
+       "      <td>2</td>\n",
+       "      <td>3</td>\n",
+       "      <td>1</td>\n",
+       "      <td>1</td>\n",
+       "      <td>2</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>3</th>\n",
+       "      <td>1016277</td>\n",
+       "      <td>6</td>\n",
+       "      <td>8</td>\n",
+       "      <td>8</td>\n",
+       "      <td>1</td>\n",
+       "      <td>3</td>\n",
+       "      <td>4</td>\n",
+       "      <td>3</td>\n",
+       "      <td>7</td>\n",
+       "      <td>1</td>\n",
+       "      <td>2</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>4</th>\n",
+       "      <td>1017023</td>\n",
+       "      <td>4</td>\n",
+       "      <td>1</td>\n",
+       "      <td>1</td>\n",
+       "      <td>3</td>\n",
+       "      <td>2</td>\n",
+       "      <td>1</td>\n",
+       "      <td>3</td>\n",
+       "      <td>1</td>\n",
+       "      <td>1</td>\n",
+       "      <td>2</td>\n",
+       "    </tr>\n",
+       "  </tbody>\n",
+       "</table>\n",
+       "</div>"
+      ],
+      "text/plain": [
+       "        id  clump_thickness  un_cell_size  un_cell_shape  marginal_adheshion  \\\n",
+       "0  1000025                5             1              1                   1   \n",
+       "1  1002945                5             4              4                   5   \n",
+       "2  1015425                3             1              1                   1   \n",
+       "3  1016277                6             8              8                   1   \n",
+       "4  1017023                4             1              1                   3   \n",
+       "\n",
+       "   single_eph_cell_size bare_nuclei  bland_chromatin  normal_nucleoli  \\\n",
+       "0                     2           1                3                1   \n",
+       "1                     7          10                3                2   \n",
+       "2                     2           2                3                1   \n",
+       "3                     3           4                3                7   \n",
+       "4                     2           1                3                1   \n",
+       "\n",
+       "   mitoses  class  \n",
+       "0        1      2  \n",
+       "1        1      2  \n",
+       "2        1      2  \n",
+       "3        1      2  \n",
+       "4        1      2  "
+      ]
+     },
+     "execution_count": 3,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "df.head()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "colab_type": "text",
+    "id": "NvvbnFL36L85"
+   },
+   "source": [
+    "We have to do some preprocessing on the data. We first pop the id column since it is of no use for our problem at hand."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 4,
+   "metadata": {
+    "colab": {},
+    "colab_type": "code",
+    "id": "nDeXwHdA5uUN"
+   },
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "0      1000025\n",
+       "1      1002945\n",
+       "2      1015425\n",
+       "3      1016277\n",
+       "4      1017023\n",
+       "        ...   \n",
+       "694     776715\n",
+       "695     841769\n",
+       "696     888820\n",
+       "697     897471\n",
+       "698     897471\n",
+       "Name: id, Length: 699, dtype: int64"
+      ]
+     },
+     "execution_count": 4,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "df.pop(\"id\")"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "colab_type": "text",
+    "id": "ubw5LueA6ZEY"
+   },
+   "source": [
+    "Upon inspection of data, you can see that some values of the **bare_nuclei** column are unknown. We drop the rows with these unknown values. We also convert the **bare_nuclei** column to numeric. This is required for training the model."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 5,
+   "metadata": {
+    "colab": {},
+    "colab_type": "code",
+    "id": "MCcOrl1ITVhr"
+   },
+   "outputs": [],
+   "source": [
+    "df = df[df[\"bare_nuclei\"] != '?' ]\n",
+    "df.bare_nuclei = pd.to_numeric(df.bare_nuclei)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "colab_type": "text",
+    "id": "UQMhcTQG7LzY"
+   },
+   "source": [
+    "We check the class distribution of the data. You can see that there are two classes, 2.0 and 4.0\n",
+    "According to the dataset:\n",
+    "* **2.0 = benign**\n",
+    "* **4.0 = malignant**\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 6,
+   "metadata": {
+    "colab": {},
+    "colab_type": "code",
+    "id": "SaAdQrBv8daS"
+   },
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "<matplotlib.axes._subplots.AxesSubplot at 0x7f719421b590>"
+      ]
+     },
+     "execution_count": 6,
+     "metadata": {},
+     "output_type": "execute_result"
+    },
+    {
+     "data": {
+      "image/png": "iVBORw0KGgoAAAANSUhEUgAAAXcAAAD4CAYAAAAXUaZHAAAABHNCSVQICAgIfAhkiAAAAAlwSFlzAAALEgAACxIB0t1+/AAAADh0RVh0U29mdHdhcmUAbWF0cGxvdGxpYiB2ZXJzaW9uMy4yLjEsIGh0dHA6Ly9tYXRwbG90bGliLm9yZy+j8jraAAAQXElEQVR4nO3df6zddX3H8efLguioo2Vo17Rs7bL+MZD5gxvGZH/cyhKqMMuSkdQwUxeSZgtLXPaz+IeLfzTDP1jMULI0YqwBvWlQV4KySSp3blNkVtFakNFJgxXSRoHqZYQF9t4f90s8Xu7l/Lj33Fs/PB/Jzf2ez/f7Pd/X+fbT1z3ne+89N1WFJKktr1rpAJKkpWe5S1KDLHdJapDlLkkNstwlqUFnrHQAgPPOO682bdo08v7PPPMMZ5999tIFWiLmGo65hmOu4bSY69ChQz+sqtfPu7KqVvzj4osvrsW49957F7X/uJhrOOYajrmG02Iu4Ou1QK96WUaSGmS5S1KDLHdJapDlLkkNstwlqUGWuyQ1yHKXpAZZ7pLUIMtdkhp0Wrz9wGId/sEp3rv78yPte+zGK5c4jSStPJ+5S1KDLHdJapDlLkkNstwlqUGWuyQ1yHKXpAZZ7pLUIMtdkhpkuUtSgyx3SWqQ5S5JDbLcJalBlrskNchyl6QGWe6S1CDLXZIaNHC5J1mV5JtJ7upun5vkniSPdJ/X9mx7Q5KjSR5OcsU4gkuSFjbMM/f3AQ/13N4NHKyqLcDB7jZJLgB2ABcC24BbkqxamriSpEEMVO5JNgJXAh/rGd4O7OuW9wFX94xPVdVzVfUocBS4ZGniSpIGkarqv1FyB/B3wOuAv6yqq5I8XVVrerZ5qqrWJvkIcF9V3daN3wrcXVV3zLnPXcAugHXr1l08NTU18oM4+eQpTjw72r4XbThn5OP2MzMzw+rVq8d2/6My13DMNRxzDWcxubZu3XqoqibmW9f3D2QnuQo4WVWHkkwOcLzMM/aSryBVtRfYCzAxMVGTk4Pc9fxuvv0ANx0e7W99H7t29OP2Mz09zWIe17iYazjmGo65hjOuXIM04mXAu5K8E3gN8ItJbgNOJFlfVU8kWQ+c7LY/Dpzfs/9G4PGlDC1Jenl9r7lX1Q1VtbGqNjH7jdIvVdUfAncCO7vNdgIHuuU7gR1JzkqyGdgC3L/kySVJCxrtWsasG4H9Sa4DHgOuAaiqI0n2Aw8CzwPXV9ULi04qSRrYUOVeVdPAdLf8I+DyBbbbA+xZZDZJ0oj8DVVJapDlLkkNstwlqUGWuyQ1yHKXpAZZ7pLUIMtdkhpkuUtSgyx3SWqQ5S5JDbLcJalBlrskNchyl6QGWe6S1CDLXZIaZLlLUoMsd0lqkOUuSQ2y3CWpQZa7JDXIcpekBlnuktQgy12SGmS5S1KDLHdJapDlLkkNstwlqUGWuyQ1yHKXpAZZ7pLUIMtdkhpkuUtSgyx3SWqQ5S5JDbLcJalBlrskNchyl6QGWe6S1KC+5Z7kNUnuT/KtJEeSfLAbPzfJPUke6T6v7dnnhiRHkzyc5IpxPgBJ0ksN8sz9OeDtVfUm4M3AtiSXAruBg1W1BTjY3SbJBcAO4EJgG3BLklXjCC9Jml/fcq9ZM93NM7uPArYD+7rxfcDV3fJ2YKqqnquqR4GjwCVLmlqS9LJSVf03mn3mfQj4deCjVfU3SZ6uqjU92zxVVWuTfAS4r6pu68ZvBe6uqjvm3OcuYBfAunXrLp6amhr5QZx88hQnnh1t34s2nDPycfuZmZlh9erVY7v/UZlrOOYajrmGs5hcW7duPVRVE/OtO2OQO6iqF4A3J1kDfC7JG19m88x3F/Pc515gL8DExERNTk4OEmVeN99+gJsOD/RQXuLYtaMft5/p6WkW87jGxVzDMddwzDWcceUa6qdlquppYJrZa+knkqwH6D6f7DY7Dpzfs9tG4PFFJ5UkDWyQn5Z5ffeMnSSvBX4X+C5wJ7Cz22wncKBbvhPYkeSsJJuBLcD9Sx1ckrSwQa5lrAf2ddfdXwXsr6q7knwV2J/kOuAx4BqAqjqSZD/wIPA8cH13WUeStEz6lntVfRt4yzzjPwIuX2CfPcCeRaeTJI3E31CVpAZZ7pLUIMtdkhpkuUtSgyx3SWqQ5S5JDbLcJalBlrskNchyl6QGWe6S1CDLXZIaZLlLUoMsd0lqkOUuSQ2y3CWpQZa7JDXIcpekBlnuktQgy12SGmS5S1KDLHdJapDlLkkNOmOlA0jSz7tNuz8/8r6f2Hb2Eib5KZ+5S1KDLHdJapDlLkkNstwlqUGWuyQ1yHKXpAZZ7pLUIMtdkhpkuUtSgyx3SWqQ5S5JDbLcJalBlrskNchyl6QG9S33JOcnuTfJQ0mOJHlfN35uknuSPNJ9Xtuzzw1JjiZ5OMkV43wAkqSXGuSZ+/PAX1TVbwCXAtcnuQDYDRysqi3Awe423bodwIXANuCWJKvGEV6SNL++5V5VT1TVN7rlnwAPARuA7cC+brN9wNXd8nZgqqqeq6pHgaPAJUsdXJK0sKGuuSfZBLwF+BqwrqqegNkvAMAbus02AN/v2e14NyZJWiapqsE2TFYD/wrsqarPJnm6qtb0rH+qqtYm+Sjw1aq6rRu/FfhCVX1mzv3tAnYBrFu37uKpqamRH8TJJ09x4tnR9r1owzkjH7efmZkZVq9ePbb7H5W5hmOu4bwScx3+wamR9918zqqRc23duvVQVU3Mt26gv6Ga5EzgM8DtVfXZbvhEkvVV9USS9cDJbvw4cH7P7huBx+feZ1XtBfYCTExM1OTk5CBR5nXz7Qe46fBofw722LWjH7ef6elpFvO4xsVcwzHXcF6Jud67yL+hOo5cg/y0TIBbgYeq6u97Vt0J7OyWdwIHesZ3JDkryWZgC3D/0kWWJPUzyNPdy4D3AIeTPNCNvR+4Edif5DrgMeAagKo6kmQ/8CCzP2lzfVW9sOTJJUkL6lvuVfXvQBZYffkC++wB9iwilyRpEfwNVUlqkOUuSQ2y3CWpQZa7JDXIcpekBlnuktQgy12SGmS5S1KDLHdJapDlLkkNstwlqUGWuyQ1yHKXpAZZ7pLUIMtdkhpkuUtSgyx3SWqQ5S5JDbLcJalBlrskNchyl6QGWe6S1CDLXZIaZLlLUoMsd0lqkOUuSQ2y3CWpQZa7JDXIcpekBlnuktQgy12SGmS5S1KDLHdJapDlLkkNstwlqUGWuyQ1yHKXpAZZ7pLUoL7lnuTjSU4m+U7P2LlJ7knySPd5bc+6G5IcTfJwkivGFVyStLBBnrl/Atg2Z2w3cLCqtgAHu9skuQDYAVzY7XNLklVLllaSNJC+5V5VXwaenDO8HdjXLe8Dru4Zn6qq56rqUeAocMkSZZUkDShV1X+jZBNwV1W9sbv9dFWt6Vn/VFWtTfIR4L6quq0bvxW4u6rumOc+dwG7ANatW3fx1NTUyA/i5JOnOPHsaPtetOGckY/bz8zMDKtXrx7b/Y/KXMMx13BeibkO/+DUyPtuPmfVyLm2bt16qKom5lt3xsiJ5pd5xub96lFVe4G9ABMTEzU5OTnyQW++/QA3HR7toRy7dvTj9jM9Pc1iHte4mGs45hrOKzHXe3d/fuR9P7Ht7LHkGvWnZU4kWQ/QfT7ZjR8Hzu/ZbiPw+OjxJEmjGLXc7wR2dss7gQM94zuSnJVkM7AFuH9xESVJw+p7LSPJp4FJ4Lwkx4G/BW4E9ie5DngMuAagqo4k2Q88CDwPXF9VL4wpuyRpAX3LvarevcCqyxfYfg+wZzGhJEmL42+oSlKDLHdJapDlLkkNstwlqUGWuyQ1yHKXpAZZ7pLUIMtdkhpkuUtSgyx3SWqQ5S5JDbLcJalBlrskNchyl6QGWe6S1CDLXZIaZLlLUoMsd0lqkOUuSQ2y3CWpQZa7JDXIcpekBlnuktQgy12SGmS5S1KDLHdJapDlLkkNstwlqUGWuyQ1yHKXpAZZ7pLUIMtdkhpkuUtSgyx3SWqQ5S5JDbLcJalBlrskNchyl6QGja3ck2xL8nCSo0l2j+s4kqSXGku5J1kFfBR4B3AB8O4kF4zjWJKklxrXM/dLgKNV9b2q+l9gCtg+pmNJkuY4Y0z3uwH4fs/t48Bv9W6QZBewq7s5k+ThRRzvPOCHo+yYDy3iqP2NnGvMzDUccw3HXEPY+qFF5frVhVaMq9wzz1j9zI2qvcDeJTlY8vWqmliK+1pK5hqOuYZjruG80nKN67LMceD8ntsbgcfHdCxJ0hzjKvf/BLYk2Zzk1cAO4M4xHUuSNMdYLstU1fNJ/hT4F2AV8PGqOjKOY3WW5PLOGJhrOOYajrmG84rKlarqv5Uk6eeKv6EqSQ2y3CWpQadtuSc5P8m9SR5KciTJ++bZJkn+oXuLg28neWvPurG8/cGAua7t8nw7yVeSvKln3bEkh5M8kOTry5xrMsmp7tgPJPlAz7qVPF9/1ZPpO0leSHJut25c5+s1Se5P8q0u1wfn2WYl5tcguVZifg2SayXm1yC5ln1+9Rx7VZJvJrlrnnXjnV9VdVp+AOuBt3bLrwP+C7hgzjbvBO5m9ufqLwW+1o2vAv4b+DXg1cC35u475lxvA9Z2y+94MVd3+xhw3gqdr0ngrnn2XdHzNWf73wO+tAznK8DqbvlM4GvApafB/Bok10rMr0FyrcT86ptrJeZXz/3/OfCpBc7LWOfXafvMvaqeqKpvdMs/AR5i9jdfe20HPlmz7gPWJFnPGN/+YJBcVfWVqnqqu3kfsz/nP1YDnq+FrOj5muPdwKeX4th9clVVzXQ3z+w+5v50wUrMr765Vmh+DXK+FrKi52uOZZlfAEk2AlcCH1tgk7HOr9O23Hsl2QS8hdmvyr3me5uDDS8zvly5el3H7FfnFxXwxSSHMvsWDEuuT67f7l7C3p3kwm7stDhfSX4B2AZ8pmd4bOere8n8AHASuKeqTov5NUCuXss2vwbMtezza9DztdzzC/gw8NfA/y2wfqzza1xvP7Bkkqxm9h/jz6rqx3NXz7NLvcz4cuV6cZutzP7n+52e4cuq6vEkbwDuSfLdqvryMuX6BvCrVTWT5J3APwFbOE3OF7Mvmf+jqp7sGRvb+aqqF4A3J1kDfC7JG6vqO72x59vtZcaXxAC5ZsMt8/waINeKzK9BzxfLOL+SXAWcrKpDSSYX2myesSWbX6f1M/ckZzJbCLdX1Wfn2WShtzkY69sfDJCLJL/J7Mux7VX1oxfHq+rx7vNJ4HPMvgRbllxV9eMXX8JW1ReAM5Ocx2lwvjo7mPOSeZznq+cYTwPTzD6r67Ui82uAXCsyv/rlWqn51S9Xj+WcX5cB70pyjNnLKm9PctucbcY7v4a9SL9cH8x+9fok8OGX2eZKfvYbEvd342cA3wM289NvSFy4jLl+BTgKvG3O+NnA63qWvwJsW8Zcv8xPf3HtEuCxbr8VPV/dducATwJnL9P5ej2wplt+LfBvwFWnwfwaJNdKzK9Bcq3E/OqbayXm15xjTzL/N1THOr9O58sylwHvAQ5319MA3s/sxKaq/hH4ArPfcT4K/A/wR926cb79wSC5PgD8EnBLEoDna/Zd39Yx+7IRZv8BP1VV/7yMuf4A+JMkzwPPAjtqdjat9PkC+H3gi1X1TM++4zxf64F9mf3DMq8C9lfVXUn+uCfXSsyvQXKtxPwaJNdKzK9BcsHyz695Lef88u0HJKlBp/U1d0nSaCx3SWqQ5S5JDbLcJalBlrskNchyl6QGWe6S1KD/B7SOaRoKrKp/AAAAAElFTkSuQmCC\n",
+      "text/plain": [
+       "<Figure size 432x288 with 1 Axes>"
+      ]
+     },
+     "metadata": {
+      "needs_background": "light"
+     },
+     "output_type": "display_data"
+    }
+   ],
+   "source": [
+    "df['class'].hist(bins=20) "
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "colab_type": "text",
+    "id": "ENjMKvxQ6sWy"
+   },
+   "source": [
+    "We are going to model this problem as a binary classification problem which detects whether the tumor is malignant or not. Hence, we change the dataset so that:\n",
+    "* **benign(2.0) = 0**\n",
+    "* **malignant(4.0) = 1**"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 7,
+   "metadata": {
+    "colab": {},
+    "colab_type": "code",
+    "id": "1MVzeUwf_A3E",
+    "lines_to_next_cell": 2
+   },
+   "outputs": [],
+   "source": [
+    "df['class'] = np.where(df['class'] == 2, 0, 1)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "colab_type": "text",
+    "id": "EGbKO1bR8S9h"
+   },
+   "source": [
+    "We then split the dataset into training and testing sets. Since the number of samples is small, we will perform validation on the test set."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 8,
+   "metadata": {
+    "colab": {},
+    "colab_type": "code",
+    "id": "aNUy7JcuAXjC"
+   },
+   "outputs": [],
+   "source": [
+    "train, test = train_test_split(df, test_size = 0.2)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "colab_type": "text",
+    "id": "H_ZKokUP8kP3"
+   },
+   "source": [
+    "We get the statistics for training. We can look at statistics to get an idea about the distribution of plots. If you need more visualization, you can create additional data plots. We will also be using the mean and standard deviation from statistics for normalizing the data"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 9,
+   "metadata": {
+    "colab": {},
+    "colab_type": "code",
+    "id": "k86tBT_QAm2P"
+   },
+   "outputs": [],
+   "source": [
+    "train_stats = train.describe()\n",
+    "train_stats.pop('class')\n",
+    "train_stats = train_stats.transpose()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "colab_type": "text",
+    "id": "l8AJ0Crc8u9t"
+   },
+   "source": [
+    "We pop the class column from the training and test sets to create train and test outputs."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 10,
+   "metadata": {
+    "colab": {},
+    "colab_type": "code",
+    "id": "V7EGUV-tA5LZ"
+   },
+   "outputs": [],
+   "source": [
+    "train_Y = train.pop(\"class\")\n",
+    "test_Y = test.pop(\"class\")"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "colab_type": "text",
+    "id": "N9wVRO5E9AgA"
+   },
+   "source": [
+    "Here we normalize the data by using the formula: **X = (X - mean(X)) / StandardDeviation(X)**"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 11,
+   "metadata": {
+    "colab": {},
+    "colab_type": "code",
+    "id": "NDo__q_AA3j0"
+   },
+   "outputs": [],
+   "source": [
+    "def norm(x):\n",
+    "    return (x - train_stats['mean']) / train_stats['std']"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 12,
+   "metadata": {
+    "colab": {},
+    "colab_type": "code",
+    "id": "pdARlWaDA_8G"
+   },
+   "outputs": [],
+   "source": [
+    "norm_train_X = norm(train)\n",
+    "norm_test_X = norm(test)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "colab_type": "text",
+    "id": "P6LIVZbj9Usv"
+   },
+   "source": [
+    "We now create Tensorflow datasets for training and test sets to easily be able to build and manage an input pipeline for our model."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 13,
+   "metadata": {
+    "colab": {},
+    "colab_type": "code",
+    "id": "1S0RtsP1Xsj8"
+   },
+   "outputs": [],
+   "source": [
+    "train_dataset = tf.data.Dataset.from_tensor_slices((norm_train_X.values, train_Y.values))\n",
+    "test_dataset = tf.data.Dataset.from_tensor_slices((norm_test_X.values, test_Y.values))"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "colab_type": "text",
+    "id": "-Nb44PpV9hR4"
+   },
+   "source": [
+    "We shuffle and prepare a batched dataset to be used for training in our custom training loop."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 14,
+   "metadata": {
+    "colab": {},
+    "colab_type": "code",
+    "id": "h9qdsNPen5-F"
+   },
+   "outputs": [],
+   "source": [
+    "batch_size = 32\n",
+    "train_dataset = train_dataset.shuffle(buffer_size=len(train)).batch(batch_size)\n",
+    "\n",
+    "test_dataset =  test_dataset.batch(batch_size=batch_size)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 15,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "18\n"
+     ]
+    }
+   ],
+   "source": [
+    "a = enumerate(train_dataset)\n",
+    "\n",
+    "print(len(list(a)))"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "colab_type": "text",
+    "id": "GcbOJ6C79qT5"
+   },
+   "source": [
+    "## Define the Model\n",
+    "\n",
+    "Now we will define the model. Here, we use the Keras Functional API to create a simple network of two `Dense` layers. We have modelled the problem as a binary classification problem and hence we add a single layer with sigmoid activation as the final layer of the model."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 16,
+   "metadata": {
+    "colab": {},
+    "colab_type": "code",
+    "id": "HU3qcM9WBcMh"
+   },
+   "outputs": [],
+   "source": [
+    "def base_model():\n",
+    "    inputs = tf.keras.layers.Input(shape=(len(train.columns)))\n",
+    "\n",
+    "    x = tf.keras.layers.Dense(128, activation='relu')(inputs)\n",
+    "    x = tf.keras.layers.Dense(64, activation='relu')(x)\n",
+    "    outputs = tf.keras.layers.Dense(1, activation='sigmoid')(x)\n",
+    "    model = tf.keras.Model(inputs=inputs, outputs=outputs)\n",
+    "    return model\n",
+    "\n",
+    "model = base_model()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "colab_type": "text",
+    "id": "NBhKIcKQ-Bwe"
+   },
+   "source": [
+    "## Define Optimizer and Loss\n",
+    "\n",
+    "We use RMSprop optimizer and binary crossentropy as our loss function."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 17,
+   "metadata": {
+    "colab": {},
+    "colab_type": "code",
+    "id": "v5B3vh6fs84i"
+   },
+   "outputs": [],
+   "source": [
+    "optimizer = tf.keras.optimizers.RMSprop(learning_rate=0.001)\n",
+    "loss_object = tf.keras.losses.BinaryCrossentropy()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "colab_type": "text",
+    "id": "YSNDewgovSZ8"
+   },
+   "source": [
+    "## Evaluate Untrained Model\n",
+    "We calculate the loss on the model before training begins."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 18,
+   "metadata": {
+    "colab": {},
+    "colab_type": "code",
+    "id": "TUScS3GbtPXt"
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Loss before training 0.7232\n"
+     ]
+    }
+   ],
+   "source": [
+    "outputs = model(norm_test_X.values)\n",
+    "loss_value = loss_object(y_true=test_Y.values, y_pred=outputs)\n",
+    "print(\"Loss before training %.4f\" % loss_value.numpy())"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "colab_type": "text",
+    "id": "jPPb5ewkzMBY"
+   },
+   "source": [
+    "We also plot the confusion matrix to visualize the true outputs against the outputs predicted by the model."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 19,
+   "metadata": {
+    "colab": {},
+    "colab_type": "code",
+    "id": "ueenYwWZvQM_"
+   },
+   "outputs": [],
+   "source": [
+    "def plot_confusion_matrix(y_true, y_pred, title='', labels=[0,1]):\n",
+    "    cm = confusion_matrix(y_true, y_pred)\n",
+    "    fig = plt.figure()\n",
+    "    ax = fig.add_subplot(111)\n",
+    "    cax = ax.matshow(cm)\n",
+    "    plt.title(title)\n",
+    "    fig.colorbar(cax)\n",
+    "    ax.set_xticklabels([''] + labels)\n",
+    "    ax.set_yticklabels([''] + labels)\n",
+    "    plt.xlabel('Predicted')\n",
+    "    plt.ylabel('True')\n",
+    "    fmt = 'd'\n",
+    "    thresh = cm.max() / 2.\n",
+    "    for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):\n",
+    "          plt.text(j, i, format(cm[i, j], fmt),\n",
+    "                  horizontalalignment=\"center\",\n",
+    "                  color=\"black\" if cm[i, j] > thresh else \"white\")\n",
+    "    plt.show()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 20,
+   "metadata": {
+    "colab": {},
+    "colab_type": "code",
+    "id": "FApnBUNWv-ZR"
+   },
+   "outputs": [
+    {
+     "data": {
+      "image/png": "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\n",
+      "text/plain": [
+       "<Figure size 432x288 with 2 Axes>"
+      ]
+     },
+     "metadata": {
+      "needs_background": "light"
+     },
+     "output_type": "display_data"
+    }
+   ],
+   "source": [
+    "plot_confusion_matrix(test_Y.values, tf.round(outputs), title='Confusion Matrix for Untrained Model')"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "colab_type": "text",
+    "id": "7-HTkbQb-gYp"
+   },
+   "source": [
+    "## Define Metrics (Please complete this section)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "colab_type": "text",
+    "id": "AYUyRka1-j87"
+   },
+   "source": [
+    "### Define Custom F1Score Metric\n",
+    "In this example, we will define a custom F1Score metric using the formula. \n",
+    "\n",
+    "**F1 Score = 2 * ((precision * recall) / (precision + recall))**\n",
+    "\n",
+    "**precision = true_positives / (true_positives + false_positives)**\n",
+    "\n",
+    "**recall = true_positives / (true_positives + false_negatives)**\n",
+    "\n",
+    "We use `confusion_matrix` defined in `tf.math` to calculate precision and recall.\n",
+    "\n",
+    "Here you can see that we have subclassed `tf.keras.Metric` and implemented the three required methods `update_state`, `result` and `reset_states`.\n",
+    "\n",
+    "### Please complete the result() method:"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 21,
+   "metadata": {
+    "colab": {},
+    "colab_type": "code",
+    "id": "PdUe6cqvbzXy"
+   },
+   "outputs": [],
+   "source": [
+    "class F1Score(tf.keras.metrics.Metric):\n",
+    "\n",
+    "    def __init__(self, name='f1_score', **kwargs):\n",
+    "        '''initializes attributes of the class'''\n",
+    "        \n",
+    "        # call the parent class init\n",
+    "        super(F1Score, self).__init__(name=name, **kwargs)\n",
+    "\n",
+    "        # Initialize Required variables\n",
+    "        # true positives\n",
+    "        self.tp = tf.Variable(0, dtype = 'int32')\n",
+    "        # false positives\n",
+    "        self.fp = tf.Variable(0, dtype = 'int32')\n",
+    "        # true negatives\n",
+    "        self.tn = tf.Variable(0, dtype = 'int32')\n",
+    "        # false negatives\n",
+    "        self.fn = tf.Variable(0, dtype = 'int32')\n",
+    "\n",
+    "    def update_state(self, y_true, y_pred, sample_weight=None):\n",
+    "        '''\n",
+    "        Accumulates statistics for the metric\n",
+    "        \n",
+    "        Args:\n",
+    "            y_true: target values from the test data\n",
+    "            y_pred: predicted values by the model\n",
+    "        '''\n",
+    "\n",
+    "        # Calulcate confusion matrix.\n",
+    "        conf_matrix = tf.math.confusion_matrix(y_true, y_pred, num_classes=2)\n",
+    "        \n",
+    "        # Update values of true positives, true negatives, false positives and false negatives from confusion matrix.\n",
+    "        self.tn.assign_add(conf_matrix[0][0])\n",
+    "        self.tp.assign_add(conf_matrix[1][1])\n",
+    "        self.fp.assign_add(conf_matrix[0][1])\n",
+    "        self.fn.assign_add(conf_matrix[1][0])\n",
+    "\n",
+    "    def result(self):\n",
+    "        '''Computes and returns the metric value tensor.'''\n",
+    "\n",
+    "        # Calculate precision\n",
+    "        if (self.tp + self.fp == 0):\n",
+    "            precision = 1.0\n",
+    "        else:\n",
+    "            precision = self.tp / (self.tp + self.fp)\n",
+    "      \n",
+    "        # Calculate recall\n",
+    "        if (self.tp + self.fn == 0):\n",
+    "            recall = 1.0\n",
+    "        else:\n",
+    "            recall = self.tp / (self.tp + self.fn)\n",
+    "\n",
+    "        # Return F1 Score\n",
+    "        ### START CODE HERE ###\n",
+    "        f1_score = 2 * (precision * recall) / (precision + recall)#2 * ((precision * recall) / (precision + recall))\n",
+    "        ### END CODE HERE ###\n",
+    "        \n",
+    "        return f1_score\n",
+    "\n",
+    "    def reset_states(self):\n",
+    "        '''Resets all of the metric state variables.'''\n",
+    "        \n",
+    "        # The state of the metric will be reset at the start of each epoch.\n",
+    "        self.tp.assign(0)\n",
+    "        self.tn.assign(0) \n",
+    "        self.fp.assign(0)\n",
+    "        self.fn.assign(0)\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 22,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "<tf.Tensor: shape=(), dtype=float64, numpy=0.2222222222222222>"
+      ]
+     },
+     "execution_count": 22,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "# Test Code:\n",
+    "\n",
+    "test_F1Score = F1Score()\n",
+    "\n",
+    "test_F1Score.tp = tf.Variable(2, dtype = 'int32')\n",
+    "test_F1Score.fp = tf.Variable(5, dtype = 'int32')\n",
+    "test_F1Score.tn = tf.Variable(7, dtype = 'int32')\n",
+    "test_F1Score.fn = tf.Variable(9, dtype = 'int32')\n",
+    "test_F1Score.result()\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "**Expected Output:**\n",
+    "\n",
+    "```txt\n",
+    "<tf.Tensor: shape=(), dtype=float64, numpy=0.2222222222222222>\n",
+    "```"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "colab_type": "text",
+    "id": "xiTa2CePAOTa"
+   },
+   "source": [
+    "We initialize the seprate metrics required for training and validation. In addition to our custom F1Score metric, we are also using `BinaryAccuracy` defined in `tf.keras.metrics`"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 23,
+   "metadata": {
+    "colab": {},
+    "colab_type": "code",
+    "id": "7Pa_x-5-CH_V"
+   },
+   "outputs": [],
+   "source": [
+    "train_f1score_metric = F1Score()\n",
+    "val_f1score_metric = F1Score()\n",
+    "\n",
+    "train_acc_metric = tf.keras.metrics.BinaryAccuracy()\n",
+    "val_acc_metric = tf.keras.metrics.BinaryAccuracy()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "colab_type": "text",
+    "id": "1huOxRpEAxvf"
+   },
+   "source": [
+    "## Apply Gradients (Please complete this section)\n",
+    "\n",
+    "The core of training is using the model to calculate the logits on specific set of inputs and compute the loss(in this case **binary crossentropy**) by comparing the predicted outputs to the true outputs. We then update the trainable weights using the optimizer algorithm chosen. The optimizer algorithm requires our computed loss and partial derivatives of loss with respect to each of the trainable weights to make updates to the same.\n",
+    "\n",
+    "We use gradient tape to calculate the gradients and then update the model trainable weights using the optimizer.\n",
+    "\n",
+    "### Please complete the following function:"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 24,
+   "metadata": {
+    "colab": {},
+    "colab_type": "code",
+    "id": "MMPe25Dstn0v"
+   },
+   "outputs": [],
+   "source": [
+    "def apply_gradient(optimizer, loss_object, model, x, y):\n",
+    "    '''\n",
+    "    applies the gradients to the trainable model weights\n",
+    "    \n",
+    "    Args:\n",
+    "        optimizer: optimizer to update model weights\n",
+    "        loss_object: type of loss to measure during training\n",
+    "        model: the model we are training\n",
+    "        x: input data to the model\n",
+    "        y: target values for each input\n",
+    "    '''\n",
+    "    \n",
+    "    with tf.GradientTape() as tape:\n",
+    "    ### START CODE HERE ###\n",
+    "        logits = model(x)\n",
+    "        loss_value = loss_object(y_true=y, y_pred=logits)\n",
+    "  \n",
+    "    gradients = tape.gradient(loss_value, model.trainable_weights)\n",
+    "    optimizer.apply_gradients(zip(gradients, model.trainable_weights))\n",
+    "    ### END CODE HERE ###\n",
+    "  \n",
+    "    return logits, loss_value"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 25,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "[[0.5326839 ]\n",
+      " [0.521192  ]\n",
+      " [0.5415604 ]\n",
+      " [0.5056645 ]\n",
+      " [0.5457621 ]\n",
+      " [0.5355832 ]\n",
+      " [0.4951633 ]\n",
+      " [0.43750155]]\n",
+      "0.7106827\n"
+     ]
+    }
+   ],
+   "source": [
+    "# Test Code:\n",
+    "\n",
+    "test_model = tf.keras.models.load_model('./test_model')\n",
+    "test_logits, test_loss = apply_gradient(optimizer, loss_object, test_model, norm_test_X.values, test_Y.values)\n",
+    "\n",
+    "print(test_logits.numpy()[:8])\n",
+    "print(test_loss.numpy())\n",
+    "\n",
+    "del test_model\n",
+    "del test_logits\n",
+    "del test_loss"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "**Expected Output:**\n",
+    "\n",
+    "The output will be close to these values:\n",
+    "```txt\n",
+    "[[0.5516499 ]\n",
+    " [0.52124363]\n",
+    " [0.5412698 ]\n",
+    " [0.54203206]\n",
+    " [0.50022954]\n",
+    " [0.5459626 ]\n",
+    " [0.47841492]\n",
+    " [0.54381996]]\n",
+    "0.7030578\n",
+    "```"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "colab_type": "text",
+    "id": "JYM6GZPjB40r"
+   },
+   "source": [
+    "## Training Loop (Please complete this section)\n",
+    "\n",
+    "This function performs training during one epoch. We run through all batches of training data in each epoch to make updates to trainable weights using our previous function.\n",
+    "You can see that we also call `update_state` on our metrics to accumulate the value of our metrics. \n",
+    "\n",
+    "We are displaying a progress bar to indicate completion of training in each epoch. Here we use `tqdm` for displaying the progress bar. \n",
+    "\n",
+    "### Please complete the following function:"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 26,
+   "metadata": {
+    "colab": {},
+    "colab_type": "code",
+    "id": "3fHoh_hgz2PC"
+   },
+   "outputs": [],
+   "source": [
+    "def train_data_for_one_epoch(train_dataset, optimizer, loss_object, model, \n",
+    "                             train_acc_metric, train_f1score_metric, verbose=True):\n",
+    "    '''\n",
+    "    Computes the loss then updates the weights and metrics for one epoch.\n",
+    "    \n",
+    "    Args:\n",
+    "        train_dataset: the training dataset\n",
+    "        optimizer: optimizer to update model weights\n",
+    "        loss_object: type of loss to measure during training\n",
+    "        model: the model we are training\n",
+    "        train_acc_metric: calculates how often predictions match labels\n",
+    "        train_f1score_metric: custom metric we defined earlier\n",
+    "    '''\n",
+    "    losses = []\n",
+    "\n",
+    "    #Iterate through all batches of training data\n",
+    "    for step, (x_batch_train, y_batch_train) in enumerate(train_dataset):\n",
+    "\n",
+    "        #Calculate loss and update trainable variables using optimizer\n",
+    "        ### START CODE HERE ###\n",
+    "        logits, loss_value = apply_gradient(optimizer, loss_object, model, x_batch_train, y_batch_train)#optimizer, loss_object, model, x, y\n",
+    "        losses.append(loss_value)\n",
+    "        ### END CODE HERE ###\n",
+    "\n",
+    "        #Round off logits to nearest integer and cast to integer for calulating metrics\n",
+    "        logits = tf.round(logits)\n",
+    "        logits = tf.cast(logits, 'int64')\n",
+    "\n",
+    "        #Update the training metrics\n",
+    "        ### START CODE HERE ###\n",
+    "        train_acc_metric.update_state(y_batch_train, logits)# y_true, y_pred\n",
+    "        train_f1score_metric.update_state(y_batch_train, logits)# y_true, y_pred\n",
+    "        ### END CODE HERE ###\n",
+    "\n",
+    "        #Update progress\n",
+    "        if verbose:\n",
+    "            print(\"Training loss for step %s: %.4f\" % (int(step), float(loss_value)))\n",
+    "    \n",
+    "    return losses"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 27,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "0.76401395\n",
+      "0.63801706\n",
+      "0.5888227\n",
+      "0.51029766\n",
+      "0.48506328\n",
+      "0.40102753\n",
+      "0.40213466\n",
+      "0.36562622\n",
+      "0.32835865\n",
+      "0.33328986\n",
+      "0.30654353\n",
+      "0.28743875\n",
+      "0.21214622\n",
+      "0.24924584\n",
+      "0.17879334\n",
+      "0.27855098\n",
+      "0.19513488\n",
+      "0.1883979\n"
+     ]
+    }
+   ],
+   "source": [
+    "# TEST CODE\n",
+    "\n",
+    "test_model = tf.keras.models.load_model('./test_model')\n",
+    "\n",
+    "test_losses = train_data_for_one_epoch(train_dataset, optimizer, loss_object, test_model, \n",
+    "                             train_acc_metric, train_f1score_metric, verbose=False)\n",
+    "\n",
+    "for test_loss in test_losses:\n",
+    "    print(test_loss.numpy())\n",
+    "\n",
+    "del test_model\n",
+    "del test_losses"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "**Expected Output:**\n",
+    "\n",
+    "The losses should generally be decreasing and will start from around 0.75. For example:\n",
+    "\n",
+    "```\n",
+    "0.7600615\n",
+    "0.6092045\n",
+    "0.5525634\n",
+    "0.4358902\n",
+    "0.4765755\n",
+    "0.43327087\n",
+    "0.40585428\n",
+    "0.32855004\n",
+    "0.35755336\n",
+    "0.3651728\n",
+    "0.33971977\n",
+    "0.27372319\n",
+    "0.25026917\n",
+    "0.29229593\n",
+    "0.242178\n",
+    "0.20602849\n",
+    "0.15887335\n",
+    "0.090397514\n",
+    "```"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "colab_type": "text",
+    "id": "d9RJq8BLCsSF"
+   },
+   "source": [
+    "At the end of each epoch, we have to validate the model on the test dataset. The following function calculates the loss on test dataset and updates the states of the validation metrics."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 28,
+   "metadata": {
+    "colab": {},
+    "colab_type": "code",
+    "id": "5gLJyAJE0YRc"
+   },
+   "outputs": [],
+   "source": [
+    "def perform_validation():\n",
+    "    losses = []\n",
+    "\n",
+    "    #Iterate through all batches of validation data.\n",
+    "    for x_val, y_val in test_dataset:\n",
+    "\n",
+    "        #Calculate validation loss for current batch.\n",
+    "        val_logits = model(x_val) \n",
+    "        val_loss = loss_object(y_true=y_val, y_pred=val_logits)\n",
+    "        losses.append(val_loss)\n",
+    "\n",
+    "        #Round off and cast outputs to either  or 1\n",
+    "        val_logits = tf.cast(tf.round(model(x_val)), 'int64')\n",
+    "\n",
+    "        #Update validation metrics\n",
+    "        val_acc_metric.update_state(y_val, val_logits)\n",
+    "        val_f1score_metric.update_state(y_val, val_logits)\n",
+    "        \n",
+    "    return losses"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "colab_type": "text",
+    "id": "DLymSCkUC-CL"
+   },
+   "source": [
+    "Next we define the training loop that runs through the training samples repeatedly over a fixed number of epochs. Here we combine the functions we built earlier to establish the following flow:\n",
+    "1. Perform training over all batches of training data.\n",
+    "2. Get values of metrics.\n",
+    "3. Perform validation to calculate loss and update validation metrics on test data.\n",
+    "4. Reset the metrics at the end of epoch.\n",
+    "5. Display statistics at the end of each epoch.\n",
+    "\n",
+    "**Note** : We also calculate the training and validation losses for the whole epoch at the end of the epoch."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 29,
+   "metadata": {
+    "colab": {},
+    "colab_type": "code",
+    "id": "OOO1x3VyuPUV"
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Start of epoch 0\n",
+      "Training loss for step 0: 0.7222\n",
+      "Training loss for step 1: 0.5908\n",
+      "Training loss for step 2: 0.4672\n",
+      "Training loss for step 3: 0.4492\n",
+      "Training loss for step 4: 0.3558\n",
+      "Training loss for step 5: 0.3701\n",
+      "Training loss for step 6: 0.3044\n",
+      "Training loss for step 7: 0.2592\n",
+      "Training loss for step 8: 0.3218\n",
+      "Training loss for step 9: 0.1897\n",
+      "Training loss for step 10: 0.2417\n",
+      "Training loss for step 11: 0.2230\n",
+      "Training loss for step 12: 0.1873\n",
+      "Training loss for step 13: 0.1823\n",
+      "Training loss for step 14: 0.1326\n",
+      "Training loss for step 15: 0.1683\n",
+      "Training loss for step 16: 0.1796\n",
+      "Training loss for step 17: 0.2727\n",
+      "\n",
+      " Epcoh 0: Train loss: 0.3121  Validation Loss: 0.1397, Train Accuracy: 0.9193, Validation Accuracy 0.9688, Train F1 Score: 0.8886, Validation F1 Score: 0.9438\n",
+      "Start of epoch 1\n",
+      "Training loss for step 0: 0.1409\n",
+      "Training loss for step 1: 0.1036\n",
+      "Training loss for step 2: 0.0930\n",
+      "Training loss for step 3: 0.1141\n",
+      "Training loss for step 4: 0.1420\n",
+      "Training loss for step 5: 0.1161\n",
+      "Training loss for step 6: 0.1388\n",
+      "Training loss for step 7: 0.1238\n",
+      "Training loss for step 8: 0.0757\n",
+      "Training loss for step 9: 0.1655\n",
+      "Training loss for step 10: 0.0563\n",
+      "Training loss for step 11: 0.0479\n",
+      "Training loss for step 12: 0.1518\n",
+      "Training loss for step 13: 0.0578\n",
+      "Training loss for step 14: 0.0768\n",
+      "Training loss for step 15: 0.1324\n",
+      "Training loss for step 16: 0.1234\n",
+      "Training loss for step 17: 0.0485\n",
+      "\n",
+      " Epcoh 1: Train loss: 0.1060  Validation Loss: 0.0863, Train Accuracy: 0.9688, Validation Accuracy 0.9688, Train F1 Score: 0.9545, Validation F1 Score: 0.9438\n",
+      "Start of epoch 2\n",
+      "Training loss for step 0: 0.1076\n",
+      "Training loss for step 1: 0.1331\n",
+      "Training loss for step 2: 0.0342\n",
+      "Training loss for step 3: 0.0648\n",
+      "Training loss for step 4: 0.1938\n",
+      "Training loss for step 5: 0.0764\n",
+      "Training loss for step 6: 0.0364\n",
+      "Training loss for step 7: 0.0977\n",
+      "Training loss for step 8: 0.1066\n",
+      "Training loss for step 9: 0.0210\n",
+      "Training loss for step 10: 0.0669\n",
+      "Training loss for step 11: 0.0163\n",
+      "Training loss for step 12: 0.0389\n",
+      "Training loss for step 13: 0.1955\n",
+      "Training loss for step 14: 0.0346\n",
+      "Training loss for step 15: 0.0992\n",
+      "Training loss for step 16: 0.0536\n",
+      "Training loss for step 17: 0.0153\n",
+      "\n",
+      " Epcoh 2: Train loss: 0.0773  Validation Loss: 0.0729, Train Accuracy: 0.9722, Validation Accuracy 0.9750, Train F1 Score: 0.9596, Validation F1 Score: 0.9545\n",
+      "Start of epoch 3\n",
+      "Training loss for step 0: 0.0153\n",
+      "Training loss for step 1: 0.0466\n",
+      "Training loss for step 2: 0.1432\n",
+      "Training loss for step 3: 0.1042\n",
+      "Training loss for step 4: 0.0149\n",
+      "Training loss for step 5: 0.0138\n",
+      "Training loss for step 6: 0.0545\n",
+      "Training loss for step 7: 0.0431\n",
+      "Training loss for step 8: 0.0219\n",
+      "Training loss for step 9: 0.1702\n",
+      "Training loss for step 10: 0.0872\n",
+      "Training loss for step 11: 0.0092\n",
+      "Training loss for step 12: 0.0522\n",
+      "Training loss for step 13: 0.0346\n",
+      "Training loss for step 14: 0.0402\n",
+      "Training loss for step 15: 0.1682\n",
+      "Training loss for step 16: 0.2106\n",
+      "Training loss for step 17: 0.0163\n",
+      "\n",
+      " Epcoh 3: Train loss: 0.0692  Validation Loss: 0.0699, Train Accuracy: 0.9740, Validation Accuracy 0.9750, Train F1 Score: 0.9622, Validation F1 Score: 0.9545\n",
+      "Start of epoch 4\n",
+      "Training loss for step 0: 0.0828\n",
+      "Training loss for step 1: 0.0607\n",
+      "Training loss for step 2: 0.0459\n",
+      "Training loss for step 3: 0.1158\n",
+      "Training loss for step 4: 0.0347\n",
+      "Training loss for step 5: 0.0523\n",
+      "Training loss for step 6: 0.1318\n",
+      "Training loss for step 7: 0.1171\n",
+      "Training loss for step 8: 0.0477\n",
+      "Training loss for step 9: 0.1001\n",
+      "Training loss for step 10: 0.0141\n",
+      "Training loss for step 11: 0.0979\n",
+      "Training loss for step 12: 0.0180\n",
+      "Training loss for step 13: 0.1036\n",
+      "Training loss for step 14: 0.0126\n",
+      "Training loss for step 15: 0.0429\n",
+      "Training loss for step 16: 0.0251\n",
+      "Training loss for step 17: 0.3980\n",
+      "\n",
+      " Epcoh 4: Train loss: 0.0834  Validation Loss: 0.0686, Train Accuracy: 0.9497, Validation Accuracy 0.9750, Train F1 Score: 0.9646, Validation F1 Score: 0.9545\n"
+     ]
+    }
+   ],
+   "source": [
+    "# Iterate over epochs.\n",
+    "epochs = 5\n",
+    "epochs_val_losses, epochs_train_losses = [], []\n",
+    "\n",
+    "for epoch in range(epochs):\n",
+    "    print('Start of epoch %d' % (epoch,))\n",
+    "    #Perform Training over all batches of train data\n",
+    "    losses_train = train_data_for_one_epoch(train_dataset, optimizer, loss_object, model, train_acc_metric, train_f1score_metric)\n",
+    "\n",
+    "    # Get results from training metrics\n",
+    "    train_acc = train_acc_metric.result()\n",
+    "    train_f1score = train_f1score_metric.result()\n",
+    "\n",
+    "    #Perform validation on all batches of test data\n",
+    "    losses_val = perform_validation()\n",
+    "\n",
+    "    # Get results from validation metrics\n",
+    "    val_acc = val_acc_metric.result()\n",
+    "    val_f1score = val_f1score_metric.result()\n",
+    "\n",
+    "    #Calculate training and validation losses for current epoch\n",
+    "    losses_train_mean = np.mean(losses_train)\n",
+    "    losses_val_mean = np.mean(losses_val)\n",
+    "    epochs_val_losses.append(losses_val_mean)\n",
+    "    epochs_train_losses.append(losses_train_mean)\n",
+    "\n",
+    "    print('\\n Epcoh %s: Train loss: %.4f  Validation Loss: %.4f, Train Accuracy: %.4f, Validation Accuracy %.4f, Train F1 Score: %.4f, Validation F1 Score: %.4f' % (epoch, float(losses_train_mean), float(losses_val_mean), float(train_acc), float(val_acc), train_f1score, val_f1score))\n",
+    "\n",
+    "    #Reset states of all metrics\n",
+    "    train_acc_metric.reset_states()\n",
+    "    val_acc_metric.reset_states()\n",
+    "    val_f1score_metric.reset_states()\n",
+    "    train_f1score_metric.reset_states()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "colab_type": "text",
+    "id": "JoLxueMdzm14"
+   },
+   "source": [
+    "## Evaluate the Model"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "colab_type": "text",
+    "id": "6EGW3HVUzqBX"
+   },
+   "source": [
+    "### Plots for Evaluation"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "colab_type": "text",
+    "id": "t8Wsr6wG0T4h"
+   },
+   "source": [
+    "We plot the progress of loss as training proceeds over number of epochs."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 30,
+   "metadata": {
+    "colab": {},
+    "colab_type": "code",
+    "id": "MsmF_2n307SP"
+   },
+   "outputs": [
+    {
+     "data": {
+      "image/png": "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\n",
+      "text/plain": [
+       "<Figure size 432x288 with 1 Axes>"
+      ]
+     },
+     "metadata": {
+      "needs_background": "light"
+     },
+     "output_type": "display_data"
+    }
+   ],
+   "source": [
+    "def plot_metrics(train_metric, val_metric, metric_name, title, ylim=5):\n",
+    "    plt.title(title)\n",
+    "    plt.ylim(0,ylim)\n",
+    "    plt.gca().xaxis.set_major_locator(mticker.MultipleLocator(1))\n",
+    "    plt.plot(train_metric,color='blue',label=metric_name)\n",
+    "    plt.plot(val_metric,color='green',label='val_' + metric_name)\n",
+    "\n",
+    "plot_metrics(epochs_train_losses, epochs_val_losses, \"Loss\", \"Loss\", ylim=1.0)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "colab_type": "text",
+    "id": "27fXX7Yqyu5S"
+   },
+   "source": [
+    "We plot the confusion matrix to visualize the true values against the values predicted by the model."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 31,
+   "metadata": {
+    "colab": {},
+    "colab_type": "code",
+    "id": "_9n2XJ9MwpDS"
+   },
+   "outputs": [
+    {
+     "data": {
+      "image/png": "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\n",
+      "text/plain": [
+       "<Figure size 432x288 with 2 Axes>"
+      ]
+     },
+     "metadata": {
+      "needs_background": "light"
+     },
+     "output_type": "display_data"
+    }
+   ],
+   "source": [
+    "test_outputs = model(norm_test_X.values)\n",
+    "plot_confusion_matrix(test_Y.values, tf.round(test_outputs), title='Confusion Matrix for Untrained Model')"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": []
+  }
+ ],
+ "metadata": {
+  "coursera": {
+   "schema_names": [
+    "TF3C2W2-1",
+    "TF3C2W2-2",
+    "TF3C2W2-3"
+   ]
+  },
+  "kernelspec": {
+   "display_name": "Python 3",
+   "language": "python",
+   "name": "python3"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.7.6"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 4
+}
